@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 
+//const anthropic = new Anthropic({
+//  apiKey: process.env.ANTHROPIC_API_KEY,
+//});
+
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.ANTHROPIC_AUTH_TOKEN,
+  baseURL: process.env.ANTHROPIC_BASE_URL,
+  timeout: process.env.API_TIMEOUT_MS || 600000,
 });
 
 export async function GET() {
