@@ -11,7 +11,17 @@ const anthropic = new Anthropic({
   timeout: process.env.API_TIMEOUT_MS || 600000,
 });
 
+// Mark this route as dynamic to prevent static generation at build time
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
+  // Check for required environment variables
+  if (!process.env.ANTHROPIC_AUTH_TOKEN || !process.env.NEWS_API_KEY) {
+    return NextResponse.json({
+      success: false,
+      error: 'Missing required environment variables'
+    }, { status: 500 });
+  }
   try {
     // Fetch news from NewsAPI
     const categories = ['technology', 'science', 'business', 'general'];
@@ -78,9 +88,10 @@ Remember: Make it conversational and relatable for teenagers. Focus on questions
     // Parse Claude's response
     const responseText = message.content[0].text;
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    
+
     if (!jsonMatch) {
-      throw new Error('No JSON found in response');
+      console.error('Claude response text:', responseText);
+      throw new Error(`No JSON found in response. Response was: ${responseText.substring(0, 200)}...`);
     }
 
     const curatedNews = JSON.parse(jsonMatch[0]);
