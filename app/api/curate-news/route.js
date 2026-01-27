@@ -31,7 +31,12 @@ export async function GET() {
     );
 
     const newsResults = await Promise.all(newsPromises);
+    // Debug: Log what NewsAPI returned 
+    console.log('NewsAPI results:', JSON.stringify(newsResults, null, 2)); 
+    
     const allArticles = newsResults.flatMap(result => result.articles || []);
+    // Debug: Log article count
+    console.log(`Total articles fetched: ${allArticles.length}`); 
 
     // Prepare articles for AI curation
     const articlesText = allArticles.map((article, idx) => 
