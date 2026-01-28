@@ -8,7 +8,7 @@ import Anthropic from '@anthropic-ai/sdk';
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_AUTH_TOKEN,
   baseURL: process.env.ANTHROPIC_BASE_URL,
-  timeout: process.env.API_TIMEOUT_MS || 600000,
+  timeout: parseInt(process.env.API_TIMEOUT_MS) || 600000,
 });
 
 // Mark this route as dynamic to prevent static generation at build time
