@@ -228,7 +228,9 @@ For each of the 5 stories you select, provide:
 7. US College essay connection (how this relates to college applications)
 8. Three thinking skills developed
 
-Respond ONLY with valid JSON in this exact format:
+IMPORTANT: Respond with ONLY valid JSON. Do not include any text before or after the JSON. Ensure all strings are properly escaped and quoted.
+
+JSON format:
 {
   "stories": [
     {
@@ -245,20 +247,35 @@ Respond ONLY with valid JSON in this exact format:
   ]
 }
 
-Remember: Make it conversational and relatable for teenagers. Focus on questions that make them think, not just recall facts.`
+Remember: Make it conversational and relatable for teenagers. Focus on questions that make them think, not just recall facts. Ensure all JSON strings are properly escaped.`
       }]
     });
 
     // Parse Claude's response
     const responseText = message.content[0].text;
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
+    // Try to extract JSON more carefully
+    let jsonMatch = responseText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+    if (!jsonMatch) {
+      // Try without code blocks
+      jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    }
 
     if (!jsonMatch) {
       console.error('Claude response text:', responseText);
       throw new Error(`No JSON found in response. Response was: ${responseText.substring(0, 200)}...`);
     }
 
-    const curatedNews = JSON.parse(jsonMatch[0]);
+    const jsonString = jsonMatch[1] || jsonMatch[0];
+
+    let curatedNews;
+    try {
+      curatedNews = JSON.parse(jsonString);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      console.error('Failed JSON string:', jsonString.substring(0, 500));
+      throw new Error(`Failed to parse JSON: ${parseError.message}`);
+    }
 
     // Add icons and colors based on category
     const categoryConfig = {
