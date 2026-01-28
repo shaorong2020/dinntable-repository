@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-
-//const anthropic = new Anthropic({
-//  apiKey: process.env.ANTHROPIC_API_KEY,
-//});
+import Parser from 'rss-parser';
+import { Redis } from '@upstash/redis';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_AUTH_TOKEN,
@@ -11,70 +9,206 @@ const anthropic = new Anthropic({
   timeout: parseInt(process.env.API_TIMEOUT_MS) || 600000,
 });
 
+const parser = new Parser({
+  timeout: 10000,
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (compatible; NewsAggregator/1.0)',
+  },
+});
+
+// Initialize Redis client (will be null if env vars not set, falling back to no cache)
+let redis = null;
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  });
+}
+
 // Mark this route as dynamic to prevent static generation at build time
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+// Cache configuration
+const CACHE_DURATION = 24 * 60 * 60; // 24 hours in seconds (for Redis TTL)
+
+/**
+ * Generate cache key for news
+ * Format: news:{language}:{ageGroup}:{categories}:{date}
+ * For now: news:{language}:default:all:{YYYY-MM-DD}
+ * Future: news:en:teen:tech,science:2026-01-28
+ */
+function getCacheKey(language, ageGroup = 'default', categories = 'all') {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  return `news:${language}:${ageGroup}:${categories}:${today}`;
+}
+
+async function getCachedNews(language, ageGroup = 'default', categories = 'all') {
+  if (!redis) {
+    console.log('Redis not configured, skipping cache');
+    return null;
+  }
+
+  try {
+    const cacheKey = getCacheKey(language, ageGroup, categories);
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+      console.log(`Cache HIT for key: ${cacheKey}`);
+      return cachedData;
+    }
+
+    console.log(`Cache MISS for key: ${cacheKey}`);
+    return null;
+  } catch (error) {
+    console.error('Error reading from Redis cache:', error);
+    return null;
+  }
+}
+
+async function setCachedNews(language, data, ageGroup = 'default', categories = 'all') {
+  if (!redis) {
+    console.log('Redis not configured, skipping cache write');
+    return;
+  }
+
+  try {
+    const cacheKey = getCacheKey(language, ageGroup, categories);
+    const cacheData = {
+      ...data,
+      cachedAt: new Date().toISOString(),
+    };
+
+    // Set with TTL (expires after 24 hours)
+    await redis.setex(cacheKey, CACHE_DURATION, JSON.stringify(cacheData));
+    console.log(`Cached news with key: ${cacheKey} (TTL: ${CACHE_DURATION}s)`);
+  } catch (error) {
+    console.error('Error writing to Redis cache:', error);
+  }
+}
+
+// High-quality RSS feeds organized by category
+const RSS_FEEDS = {
+  general: [
+    { url: 'https://feeds.bbci.co.uk/news/rss.xml', name: 'BBC News' },
+    { url: 'https://feeds.npr.org/1001/rss.xml', name: 'NPR News' },
+    { url: 'https://www.theguardian.com/world/rss', name: 'The Guardian' },
+    { url: 'https://www.aljazeera.com/xml/rss/all.xml', name: 'Al Jazeera' },
+  ],
+  technology: [
+    { url: 'https://www.wired.com/feed/rss', name: 'Wired' },
+    { url: 'https://feeds.arstechnica.com/arstechnica/index', name: 'Ars Technica' },
+    { url: 'https://www.theverge.com/rss/index.xml', name: 'The Verge' },
+  ],
+  science: [
+    { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Science.xml', name: 'NYT Science' },
+    { url: 'https://www.sciencedaily.com/rss/all.xml', name: 'Science Daily' },
+  ],
+  business: [
+    { url: 'http://feeds.feedburner.com/time/business', name: 'Time Business' },
+    { url: 'https://www.economist.com/business/rss.xml', name: 'The Economist Business' },
+  ],
+};
+
+async function fetchRSSFeed(feed) {
+  try {
+    const result = await parser.parseURL(feed.url);
+    return result.items.map(item => ({
+      title: item.title,
+      description: item.contentSnippet || item.description || '',
+      url: item.link,
+      source: { name: feed.name },
+      pubDate: item.pubDate,
+    }));
+  } catch (error) {
+    console.error(`Error fetching RSS from ${feed.name}:`, error.message);
+    return [];
+  }
+}
+
+export async function GET(request) {
+  // Get language from query parameter (default to 'en')
+  const { searchParams } = new URL(request.url);
+  const language = searchParams.get('lang') || 'en';
+
+  // Future: Get user preferences from query params or session
+  // const ageGroup = searchParams.get('ageGroup') || 'default';
+  // const categories = searchParams.get('categories') || 'all';
+
+  // Check cache first
+  const cachedNews = await getCachedNews(language);
+  if (cachedNews) {
+    const parsedCache = typeof cachedNews === 'string' ? JSON.parse(cachedNews) : cachedNews;
+    return NextResponse.json({
+      ...parsedCache,
+      cached: true,
+    });
+  }
+
   // Check for required environment variables
-  if (!process.env.ANTHROPIC_AUTH_TOKEN || !process.env.NEWS_API_KEY) {
+  if (!process.env.ANTHROPIC_AUTH_TOKEN) {
     return NextResponse.json({
       success: false,
       error: 'Missing required environment variables'
     }, { status: 500 });
   }
+
   try {
-    // Fetch news from NewsAPI
-    const categories = ['technology', 'science', 'business', 'general'];
-    const newsPromises = categories.map(category =>
-      fetch(`https://newsapi.org/v2/top-headlines?country=us&category=${category}&pageSize=5&apiKey=${process.env.NEWS_API_KEY}`)
-        .then(res => res.json())
-    );
+    // Fetch from all RSS feeds in parallel
+    const allFeeds = [
+      ...RSS_FEEDS.general,
+      ...RSS_FEEDS.technology,
+      ...RSS_FEEDS.science,
+      ...RSS_FEEDS.business,
+    ];
 
-    const newsResults = await Promise.all(newsPromises);
-    // Debug: Log what NewsAPI returned
-    console.log('NewsAPI results:', JSON.stringify(newsResults, null, 2));
+    console.log(`Fetching from ${allFeeds.length} RSS feeds...`);
 
-    // Check for API errors
-    const hasErrors = newsResults.some(result => result.status === 'error');
-    if (hasErrors) {
-      const errorDetails = newsResults
-        .filter(result => result.status === 'error')
-        .map(result => ({ code: result.code, message: result.message }));
+    const feedPromises = allFeeds.map(feed => fetchRSSFeed(feed));
+    const feedResults = await Promise.all(feedPromises);
 
-      return NextResponse.json({
-        success: false,
-        error: 'NewsAPI Error',
-        details: errorDetails,
-        hint: 'NewsAPI free tier only works on localhost. Production requires a paid plan or use a different news source.'
-      }, { status: 500 });
-    }
+    // Flatten and get recent articles (last 24-48 hours preferred)
+    const allArticles = feedResults.flat();
 
-    const allArticles = newsResults.flatMap(result => result.articles || []);
-    // Debug: Log article count
     console.log(`Total articles fetched: ${allArticles.length}`);
 
     // Check if we got any articles
     if (allArticles.length === 0) {
       return NextResponse.json({
         success: false,
-        error: 'No articles returned from NewsAPI',
-        newsApiResponse: newsResults[0],
-        hint: 'Check your NEWS_API_KEY and verify your API plan supports production domains'
+        error: 'No articles returned from RSS feeds',
+        hint: 'Unable to fetch news from RSS sources. Please try again later.'
       }, { status: 500 });
-    } 
+    }
+
+    // Sort by publication date (most recent first) and take top 50
+    const sortedArticles = allArticles
+      .filter(article => article.title && article.description)
+      .sort((a, b) => {
+        const dateA = a.pubDate ? new Date(a.pubDate) : new Date(0);
+        const dateB = b.pubDate ? new Date(b.pubDate) : new Date(0);
+        return dateB - dateA;
+      })
+      .slice(0, 50);
 
     // Prepare articles for AI curation
-    const articlesText = allArticles.map((article, idx) => 
-      `${idx + 1}. ${article.title}\n   Source: ${article.source.name}\n   Description: ${article.description}\n   URL: ${article.url}\n`
+    const articlesText = sortedArticles.map((article, idx) =>
+      `${idx + 1}. ${article.title}\n   Source: ${article.source.name}\n   Description: ${article.description.substring(0, 300)}...\n   URL: ${article.url}\n`
     ).join('\n');
 
     // Ask Claude to curate the best 5 stories
+    const languageInstruction = language === 'zh'
+      ? 'Respond in Chinese (Simplified Chinese). All content including headlines, summaries, and discussion prompts should be in Chinese.'
+      : 'Respond in English.';
+
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
       messages: [{
         role: 'user',
         content: `You are a senior college counselor with more than 10 years of experience in international high schools. Your job now is to curate news for dinner discussions with the school's teenagers (age 12-17) and their parents.
+
+${languageInstruction}
+
 From these news articles, select the BEST 5 stories that:
 1. Are appropriate and interesting for teenagers
 2. Spark meaningful discussion
@@ -143,11 +277,16 @@ Remember: Make it conversational and relatable for teenagers. Focus on questions
       sourceDisplay: story.source
     }));
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       stories: enrichedStories,
-      lastUpdated: new Date().toISOString()
-    });
+      lastUpdated: new Date().toISOString(),
+    };
+
+    // Cache the results
+    await setCachedNews(language, responseData);
+
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('Error curating news:', error);

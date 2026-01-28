@@ -7,8 +7,9 @@ import { DesktopNewsCard } from "@/components/desktop/NewsCard";
 import { DetailPanel } from "@/components/desktop/DetailPanel";
 import { Button } from "@/components/ui/button";
 import { NewsCardSkeleton, DetailPanelSkeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-export function DesktopFeedPage({ todaysNews, loading, error, lastUpdated, onRefresh }) {
+export function DesktopFeedPage({ todaysNews, loading, error, lastUpdated, onRefresh, language, onLanguageChange }) {
   const [selectedArticleId, setSelectedArticleId] = useState(null);
 
   const formatDate = (date) => {
@@ -92,15 +93,44 @@ export function DesktopFeedPage({ todaysNews, loading, error, lastUpdated, onRef
                 <span>{formatDate(lastUpdated || new Date())}</span>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={onRefresh}
-              title="Refresh news"
-              className="hover:scale-105 transition-transform"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
+
+            <div className="flex items-center gap-4">
+              {/* Language Toggle */}
+              <div className="flex items-center gap-1 bg-parchment-200 p-1 rounded-lg">
+                <button
+                  onClick={() => onLanguageChange("en")}
+                  className={cn(
+                    "py-1.5 px-4 text-sm font-medium rounded-md transition-all",
+                    language === "en"
+                      ? "bg-white text-ivy shadow-sm"
+                      : "text-gray-600 hover:text-ivy"
+                  )}
+                >
+                  English
+                </button>
+                <button
+                  onClick={() => onLanguageChange("zh")}
+                  className={cn(
+                    "py-1.5 px-4 text-sm font-medium rounded-md transition-all",
+                    language === "zh"
+                      ? "bg-white text-ivy shadow-sm"
+                      : "text-gray-600 hover:text-ivy"
+                  )}
+                >
+                  中文
+                </button>
+              </div>
+
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={onRefresh}
+                title="Refresh news"
+                className="hover:scale-105 transition-transform"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>

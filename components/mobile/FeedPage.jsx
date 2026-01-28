@@ -5,8 +5,9 @@ import { Calendar, RefreshCw, Sparkles } from "lucide-react";
 import { MobileNewsCard } from "@/components/mobile/NewsCard";
 import { Button } from "@/components/ui/button";
 import { NewsCardSkeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-export function MobileFeedPage({ todaysNews, loading, error, lastUpdated, onRefresh }) {
+export function MobileFeedPage({ todaysNews, loading, error, lastUpdated, onRefresh, language, onLanguageChange }) {
   const formatDate = (date) => {
     return date.toLocaleDateString("en-US", {
       weekday: "long",
@@ -65,7 +66,7 @@ export function MobileFeedPage({ todaysNews, loading, error, lastUpdated, onRefr
     <div className="min-h-screen bg-parchment">
       <header className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-parchment-400 shadow-header">
         <div className="max-w-lg mx-auto px-5 py-4">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <h1 className="text-xl font-serif font-bold text-ivy">
               Evening Almanac
             </h1>
@@ -79,6 +80,33 @@ export function MobileFeedPage({ todaysNews, loading, error, lastUpdated, onRefr
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
+
+          {/* Language Toggle */}
+          <div className="flex items-center gap-1 bg-parchment-200 p-1 rounded-lg mb-3">
+            <button
+              onClick={() => onLanguageChange("en")}
+              className={cn(
+                "flex-1 py-1.5 px-3 text-sm font-medium rounded-md transition-all",
+                language === "en"
+                  ? "bg-white text-ivy shadow-sm"
+                  : "text-gray-600 hover:text-ivy"
+              )}
+            >
+              English
+            </button>
+            <button
+              onClick={() => onLanguageChange("zh")}
+              className={cn(
+                "flex-1 py-1.5 px-3 text-sm font-medium rounded-md transition-all",
+                language === "zh"
+                  ? "bg-white text-ivy shadow-sm"
+                  : "text-gray-600 hover:text-ivy"
+              )}
+            >
+              中文
+            </button>
+          </div>
+
           <div className="flex items-center gap-2 text-xs text-ivy-600">
             <Calendar className="w-3.5 h-3.5" />
             <span>{formatDate(lastUpdated || new Date())}</span>

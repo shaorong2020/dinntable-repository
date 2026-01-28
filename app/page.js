@@ -12,6 +12,7 @@ export default function DinnerTableApp() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(null);
+  const [language, setLanguage] = useState("en");
 
   // Detect viewport size
   useEffect(() => {
@@ -27,11 +28,11 @@ export default function DinnerTableApp() {
     return () => window.removeEventListener("resize", checkViewport);
   }, []);
 
-  const fetchNews = async () => {
+  const fetchNews = async (lang = language) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/curate-news");
+      const response = await fetch(`/api/curate-news?lang=${lang}`);
       const data = await response.json();
 
       if (data.success) {
@@ -52,6 +53,17 @@ export default function DinnerTableApp() {
     fetchNews();
   }, []);
 
+  // Refetch when language changes
+  useEffect(() => {
+    if (todaysNews.length > 0) {
+      fetchNews(language);
+    }
+  }, [language]);
+
+  const handleLanguageChange = (newLang) => {
+    setLanguage(newLang);
+  };
+
   // Show loading state while detecting viewport
   if (isMobile === null) {
     return (
@@ -71,7 +83,9 @@ export default function DinnerTableApp() {
         loading={loading}
         error={error}
         lastUpdated={lastUpdated}
-        onRefresh={fetchNews}
+        onRefresh={() => fetchNews(language)}
+        language={language}
+        onLanguageChange={handleLanguageChange}
       />
     );
   }
@@ -82,7 +96,9 @@ export default function DinnerTableApp() {
       loading={loading}
       error={error}
       lastUpdated={lastUpdated}
-      onRefresh={fetchNews}
+      onRefresh={() => fetchNews(language)}
+      language={language}
+      onLanguageChange={handleLanguageChange}
     />
   );
 }
