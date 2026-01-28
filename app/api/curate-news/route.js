@@ -31,12 +31,37 @@ export async function GET() {
     );
 
     const newsResults = await Promise.all(newsPromises);
-    // Debug: Log what NewsAPI returned 
-    console.log('NewsAPI results:', JSON.stringify(newsResults, null, 2)); 
-    
+    // Debug: Log what NewsAPI returned
+    console.log('NewsAPI results:', JSON.stringify(newsResults, null, 2));
+
+    // Check for API errors
+    const hasErrors = newsResults.some(result => result.status === 'error');
+    if (hasErrors) {
+      const errorDetails = newsResults
+        .filter(result => result.status === 'error')
+        .map(result => ({ code: result.code, message: result.message }));
+
+      return NextResponse.json({
+        success: false,
+        error: 'NewsAPI Error',
+        details: errorDetails,
+        hint: 'NewsAPI free tier only works on localhost. Production requires a paid plan or use a different news source.'
+      }, { status: 500 });
+    }
+
     const allArticles = newsResults.flatMap(result => result.articles || []);
     // Debug: Log article count
-    console.log(`Total articles fetched: ${allArticles.length}`); 
+    console.log(`Total articles fetched: ${allArticles.length}`);
+
+    // Check if we got any articles
+    if (allArticles.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'No articles returned from NewsAPI',
+        newsApiResponse: newsResults[0],
+        hint: 'Check your NEWS_API_KEY and verify your API plan supports production domains'
+      }, { status: 500 });
+    } 
 
     // Prepare articles for AI curation
     const articlesText = allArticles.map((article, idx) => 
