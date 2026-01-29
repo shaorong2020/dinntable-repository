@@ -13,6 +13,14 @@ export function DesktopFeedPage({ todaysNews, loading, error, lastUpdated, onRef
   const [selectedArticleId, setSelectedArticleId] = useState(null);
 
   const formatDate = (date) => {
+    if (language === 'zh') {
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long',
+      });
+    }
     return date.toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
@@ -20,6 +28,23 @@ export function DesktopFeedPage({ todaysNews, loading, error, lastUpdated, onRef
       day: "numeric",
     });
   };
+
+  const translations = {
+    en: {
+      title: "Evening Almanac",
+      subtitle: "Today's curated stories for your dinner conversation. Select a story from the list to explore the full summary and discussion prompts.",
+      footer1: "Curated with care for meaningful family discussions.",
+      footer2: "Fresh stories arrive tomorrow morning.",
+    },
+    zh: {
+      title: "晚间文摘",
+      subtitle: "今日精选新闻，助力晚餐时光的深度对话。选择左侧文章查看摘要和讨论话题。",
+      footer1: "精心策划，助力家庭深度对话",
+      footer2: "明日清晨更新新一期",
+    },
+  };
+
+  const t = translations[language];
 
   const selectedArticle = todaysNews.find(article => article.id === selectedArticleId);
 
@@ -86,11 +111,11 @@ export function DesktopFeedPage({ todaysNews, loading, error, lastUpdated, onRef
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-serif font-bold text-ivy mb-1">
-                Evening Almanac
+                {t.title}
               </h1>
               <div className="flex items-center gap-2 text-sm text-ivy-600">
                 <Calendar className="w-4 h-4" />
-                <span>{formatDate(lastUpdated || new Date())}</span>
+                <span>{formatDate(new Date())}</span>
               </div>
             </div>
 
@@ -143,7 +168,7 @@ export function DesktopFeedPage({ todaysNews, loading, error, lastUpdated, onRef
           className="mb-10"
         >
           <p className="text-ivy-700 text-xl font-serif text-center leading-relaxed">
-            Today's stories worth discussing at the dinner table
+            {t.subtitle}
           </p>
         </motion.div>
 
@@ -166,6 +191,21 @@ export function DesktopFeedPage({ todaysNews, loading, error, lastUpdated, onRef
             <DetailPanel article={selectedArticle} />
           </div>
         </div>
+
+        {/* Footer text */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="mt-16 text-center"
+        >
+          <p className="text-sm text-ivy-600 font-serif italic">
+            {t.footer1}
+          </p>
+          <p className="text-sm text-ivy-600 font-serif italic">
+            {t.footer2}
+          </p>
+        </motion.div>
       </main>
     </div>
   );
