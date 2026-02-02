@@ -190,22 +190,74 @@ export async function GET(request) {
       })
       .slice(0, 50);
 
-    // Prepare articles for AI curation
-    const articlesText = sortedArticles.map((article, idx) =>
-      `${idx + 1}. ${article.title}\n   Source: ${article.source.name}\n   Description: ${article.description.substring(0, 300)}...\n   URL: ${article.url}\n`
-    ).join('\n');
+    // Prepare articles for AI curation with sanitization
+    const articlesText = sortedArticles.map((article, idx) => {
+      // Sanitize text to prevent encoding issues
+      const sanitize = (text) => text ? text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') : '';
+
+      return `${idx + 1}. ${sanitize(article.title)}\n   Source: ${sanitize(article.source.name)}\n   Description: ${sanitize(article.description.substring(0, 300))}...\n   URL: ${article.url}\n`;
+    }).join('\n');
+
+    console.log(`Articles text prepared: ${articlesText.length} characters from ${sortedArticles.length} articles`);
 
     // Ask Claude to curate the best 5 stories
     const languageInstruction = language === 'zh'
       ? 'Respond in Chinese (Simplified Chinese). All content including headlines, summaries, and discussion prompts should be in Chinese.'
       : 'Respond in English.';
 
+    // Log prompt size for debugging
+    const promptContent = `You are a senior college counselor with more than 10 years of experience in international high schools. Your job now is to curate news for dinner discussions with the school's teenagers (age 12-17) and their parents.
+
+${languageInstruction}
+
+From these news articles, select the BEST 5 stories that:
+1. Are appropriate and interesting for teenagers
+2. Spark meaningful discussion
+3. Connect to US college application essays and critical thinking
+4. Cover diverse topics across Technology, Science, Business, Politics & World, and Social & Culture
+
+Here are today's articles:
+${articlesText}
+
+For each of the 5 stories you select, provide:
+1. Category (Technology, Science, Business, Politics & World, or Social & Culture)
+2. Headline (make it engaging and teen-friendly)
+3. Summary (2-3 sentences explaining what happened)
+4. Source name and URL
+5. Why it matters (1 sentence)
+6. Three discussion prompts (conversational, thought-provoking questions)
+7. US College essay connection (how this relates to college applications)
+8. Three thinking skills developed
+
+IMPORTANT: Respond with ONLY valid JSON. Do not include any text before or after the JSON. Ensure all strings are properly escaped and quoted.
+
+JSON format:
+{
+  "stories": [
+    {
+      "category": "Technology",
+      "headline": "...",
+      "summary": "...",
+      "source": "...",
+      "sourceUrl": "...",
+      "whyItMatters": "...",
+      "discussionPrompts": ["...", "...", "..."],
+      "collegeConnection": "...",
+      "thinkingSkills": ["...", "...", "..."]
+    }
+  ]
+}
+
+Remember: Make it conversational and relatable for teenagers. Focus on questions that make them think, not just recall facts. Ensure all JSON strings are properly escaped.`;
+
+    console.log(`Prompt size: ${promptContent.length} characters, ${allArticles.length} articles`);
+
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
       messages: [{
         role: 'user',
-        content: `You are a senior college counselor with more than 10 years of experience in international high schools. Your job now is to curate news for dinner discussions with the school's teenagers (age 12-17) and their parents.
+        content: promptContent
 
 ${languageInstruction}
 
@@ -251,8 +303,22 @@ Remember: Make it conversational and relatable for teenagers. Focus on questions
       }]
     });
 
-    // Parse Claude's response
+    // Parse Claude's response with detailed logging
+    console.log('Claude API response metadata:', {
+      id: message.id,
+      model: message.model,
+      stop_reason: message.stop_reason,
+      usage: message.usage,
+      content_length: message.content?.length
+    });
+
+    if (!message.content || !message.content[0] || !message.content[0].text) {
+      console.error('Unexpected Claude API response structure:', JSON.stringify(message, null, 2));
+      throw new Error(`Claude API returned unexpected response structure. Stop reason: ${message.stop_reason}, Content array length: ${message.content?.length || 0}`);
+    }
+
     const responseText = message.content[0].text;
+    console.log(`Response text length: ${responseText.length} characters`);
 
     // Try to extract JSON more carefully
     let jsonMatch = responseText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
