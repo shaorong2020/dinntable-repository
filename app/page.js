@@ -13,6 +13,7 @@ export default function DinnerTableApp() {
   const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(null);
   const [language, setLanguage] = useState("en");
+  const hasFetchedRef = React.useRef(false); // Prevent duplicate initial fetch
 
   // Detect viewport size
   useEffect(() => {
@@ -29,36 +30,53 @@ export default function DinnerTableApp() {
   }, []);
 
   const fetchNews = async (lang = language) => {
+    console.log(`[Frontend] Starting fetchNews for language: ${lang}`);
+    const startTime = Date.now();
     setLoading(true);
     setError(null);
     try {
+      console.log(`[Frontend] Calling API: /api/curate-news?lang=${lang}`);
+      const fetchStartTime = Date.now();
       const response = await fetch(`/api/curate-news?lang=${lang}`);
+      const fetchDuration = Date.now() - fetchStartTime;
+      console.log(`[Frontend] API response received in ${fetchDuration}ms`);
+
+      const parseStartTime = Date.now();
       const data = await response.json();
+      const parseDuration = Date.now() - parseStartTime;
+      console.log(`[Frontend] JSON parsed in ${parseDuration}ms`);
 
       if (data.success) {
         setTodaysNews(data.stories);
         setLastUpdated(new Date(data.lastUpdated));
+        console.log(`[Frontend] State updated with ${data.stories.length} stories`);
       } else {
         setError(data.error || "Failed to fetch news");
+        console.error(`[Frontend] API returned error:`, data.error);
       }
     } catch (err) {
       setError("Unable to load news. Please try again.");
-      console.error("Error fetching news:", err);
+      console.error("[Frontend] Error fetching news:", err);
     } finally {
       setLoading(false);
+      const totalDuration = Date.now() - startTime;
+      console.log(`[Frontend] Total fetchNews duration: ${totalDuration}ms`);
     }
   };
 
   useEffect(() => {
+    // Prevent duplicate calls in React Strict Mode (development)
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
     fetchNews();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Refetch when language changes
+  // Refetch when language changes (but not on initial mount)
   useEffect(() => {
     if (todaysNews.length > 0) {
       fetchNews(language);
     }
-  }, [language]);
+  }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLanguageChange = (newLang) => {
     setLanguage(newLang);

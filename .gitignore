@@ -34,3 +34,6 @@ next-env.d.ts
 
 # cache
 .cache/
+
+#CLAUDE
+CLAUDE.md
