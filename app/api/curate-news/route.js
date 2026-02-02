@@ -258,48 +258,6 @@ Remember: Make it conversational and relatable for teenagers. Focus on questions
       messages: [{
         role: 'user',
         content: promptContent
-
-${languageInstruction}
-
-From these news articles, select the BEST 5 stories that:
-1. Are appropriate and interesting for teenagers
-2. Spark meaningful discussion
-3. Connect to US college application essays and critical thinking
-4. Cover diverse topics across Technology, Science, Business, Politics & World, and Social & Culture
-
-Here are today's articles:
-${articlesText}
-
-For each of the 5 stories you select, provide:
-1. Category (Technology, Science, Business, Politics & World, or Social & Culture)
-2. Headline (make it engaging and teen-friendly)
-3. Summary (2-3 sentences explaining what happened)
-4. Source name and URL
-5. Why it matters (1 sentence)
-6. Three discussion prompts (conversational, thought-provoking questions)
-7. US College essay connection (how this relates to college applications)
-8. Three thinking skills developed
-
-IMPORTANT: Respond with ONLY valid JSON. Do not include any text before or after the JSON. Ensure all strings are properly escaped and quoted.
-
-JSON format:
-{
-  "stories": [
-    {
-      "category": "Technology",
-      "headline": "...",
-      "summary": "...",
-      "source": "...",
-      "sourceUrl": "...",
-      "whyItMatters": "...",
-      "discussionPrompts": ["...", "...", "..."],
-      "collegeConnection": "...",
-      "thinkingSkills": ["...", "...", "..."]
-    }
-  ]
-}
-
-Remember: Make it conversational and relatable for teenagers. Focus on questions that make them think, not just recall facts. Ensure all JSON strings are properly escaped.`
       }]
     });
 
